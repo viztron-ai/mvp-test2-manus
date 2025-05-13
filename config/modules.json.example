@@ -1,0 +1,27 @@
+[
+  // Example: Enable object detection for weapons (ONNX format)
+  // { "module": "objectdetection.weapons.onnx",  "enabled": true },
+  
+  // Example: Enable a custom clothing classification model (ONNX format)
+  // { "module": "classification.clothing_custom.onnx", "enabled": true },
+  
+  // Example: Enable pose estimation (COCO keypoints, ONNX format)
+  // { "module": "pose.coco_keypoints.onnx",      "enabled": true },
+
+  // Example: Face recognition (if needed)
+  // { "module": "facedetection.face.onnx", "enabled": false },
+  // { "module": "facerecognition.face.onnx", "enabled": false, "properties": {"MinConfidence": "0.6"} },
+
+  // Add other CodeProject.AI modules as needed.
+  // Refer to CodeProject.AI documentation for available modules and their configuration.
+  // Ensure that any models used are compatible with the RPi5 (CPU or Coral TPU if supported by CPAI for that model).
+  {
+    "module": "objectdetection.yolov5.onnx", 
+    "enabled": true, 
+    "properties": {
+      "ModelPath": "yolov5s.onnx", // Ensure you have this model or specify a different one
+      "MinConfidence": "0.4"
+    }
+  }
+]
+

@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0 # Specify a version for stability
+    container_name: mosquitto_broker
+    ports:
+      - "1883:1883"
+      - "9001:9001" # For WebSocket support if needed later
+    volumes:
+      - ./mosquitto_config:/mosquitto/config # Optional: for custom mosquitto.conf
+      - ./mosquitto_data:/mosquitto/data     # Optional: for persistent data
+      - ./mosquitto_log:/mosquitto/log       # Optional: for logs
+    restart: unless-stopped
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.13.2 # Specify a stable version
+    container_name: frigate_nvr
+    privileged: true # Often required for hardware access
+    shm_size: "1g" # Example, adjust based on camera count and resolution. RPi5 might need less or more.
+    devices:
+      # For Coral M.2 Dual Edge TPU (PCIe based)
+      - /dev/apex_0:/dev/apex_0
+      - /dev/apex_1:/dev/apex_1
+      # For USB Coral TPU (if used instead or additionally)
+      # - /dev/bus/usb:/dev/bus/usb
+      # For RPi hardware video acceleration (e.g., /dev/dri for rendering)
+      - /dev/dri/renderD128:/dev/dri/renderD128 # This can vary, check your RPi
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/frigate.yml:/config/frigate.yml:ro # Mount your frigate.yml
+      - ./frigate_storage/media:/media/frigate # Storage for recordings and snapshots
+      - ./frigate_storage/db:/opt/frigate/db # Frigate database (if not using path in frigate.yml)
+      # - type: tmpfs # Optional: use tmpfs for clips if RAM is plentiful and to reduce SD card wear
+      #   target: /tmp/cache
+      #   tmpfs:
+      #     size: 1000m # Adjust size
+    ports:
+      - "5000:5000" # Frigate Web UI
+      - "1935:1935" # RTMP streams (if enabled in Frigate)
+    environment:
+      FRIGATE_RTSP_PASSWORD: "your_rtsp_password_if_any" # Example environment variable
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+
+  codeprojectai: # Optional service, uncomment if used
+    image: codeproject/ai-server:latest # Or a specific version
+    container_name: codeproject_ai
+    ports:
+      - "32168:32168"
+    volumes:
+      - ./config/modules.json:/app/modules.json:ro # Mount your modules.json
+      - ./codeproject_ai_data:/app/data # For models and other data
+      # If CPAI needs TPU access and Frigate isn't using both:
+      # devices:
+      #   - /dev/apex_1:/dev/apex_1 # Example if Frigate uses apex_0
+    environment:
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false # Common fix for some environments
+      - CPAI_MODULES_PATH=/app/modules
+      - CPAI_MODELS_PATH=/app/data/models
+    restart: unless-stopped
+
+  scorer:
+    build:
+      context: ./scripts # Assuming Dockerfile is in ./scripts or specify path to scorer Dockerfile
+      dockerfile: Dockerfile.scorer # You will need to create this Dockerfile
+    container_name: viztron_scorer
+    env_file:
+      - ./scripts/scorer.env # Mount your scorer.env file
+    volumes:
+      # If scorer.py needs to access homebase utilities directly (not recommended for Docker best practices)
+      # - ./homebase:/home/ubuntu/homebase # Example, adjust path as needed in scorer.py
+      # Better to build utilities into the image or have them as separate services if complex
+      pass
+    privileged: true # If direct GPIO access from scorer.py is used and RPi.GPIO needs it
+    # devices: # Alternative to privileged for GPIO if scorer.py uses /dev/gpiomem
+    #   - /dev/gpiomem:/dev/gpiomem
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+
+  audio_service:
+    build:
+      context: ./scripts/audio_service # Assuming Dockerfile is in ./scripts/audio_service
+      dockerfile: Dockerfile.audio # You will need to create this Dockerfile
+    container_name: viztron_audio_service
+    env_file:
+      - ./scripts/audio_service/audio_service.env # Mount your audio_service.env file
+    volumes:
+      - ./scripts/audio_service/prompts:/srv/prompts:ro # Mount audio prompts
+      - /tmp:/tmp # For temporary recorded audio file, ensure this is acceptable
+    devices:
+      # Adjust these to your RPi's audio hardware. Use `arecord -l` and `aplay -l` on host to find indices.
+      # These are examples and might not work directly.
+      - /dev/snd:/dev/snd # Pass through all sound devices
+    # Or, be more specific if you know the card/device numbers:
+    #   - /dev/snd/pcmC0D0c:/dev/snd/pcmC0D0c # Example capture device
+    #   - /dev/snd/pcmC0D0p:/dev/snd/pcmC0D0p # Example playback device
+    #   - /dev/snd/controlC0:/dev/snd/controlC0 # Example control device
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+
+volumes:
+  mosquitto_config:
+  mosquitto_data:
+  mosquitto_log:
+  frigate_storage_media: # Define frigate_storage/media if not using direct host path
+  frigate_storage_db:    # Define frigate_storage/db if not using direct host path
+  codeproject_ai_data:
+
+# Note on Dockerfiles (Dockerfile.scorer, Dockerfile.audio):
+# You will need to create these Dockerfiles. For example:
+# Dockerfile.scorer:
+#   FROM python:3.10-slim
+#   WORKDIR /app
+#   COPY ./scorer.py .
+#   # COPY ./homebase /app/homebase # If importing from homebase directly
+#   RUN pip install --no-cache-dir paho-mqtt RPi.GPIO # Add other dependencies if any
+#   CMD ["python", "scorer.py"]
+#
+# Dockerfile.audio:
+#   FROM python:3.10-slim
+#   WORKDIR /app
+#   COPY ./requirements.txt .
+#   COPY ./audio_service.py .
+#   RUN apt-get update && apt-get install -y --no-install-recommends \
+#       libportaudio2 portaudio19-dev ffmpeg && \
+#       pip install --no-cache-dir -r requirements.txt && \
+#       apt-get clean && rm -rf /var/lib/apt/lists/*
+#   CMD ["python", "audio_service.py"]
+

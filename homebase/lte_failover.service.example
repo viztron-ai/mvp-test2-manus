@@ -1,0 +1,32 @@
+[Unit]
+Description=LTE Failover Service Example
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# This is a placeholder. Replace with your actual command to bring up the LTE connection.
+# For example, using ModemManager and nmcli:
+# ExecStartPre=/bin/sh -c 'while ! nmcli device status | grep -q "gsm.*connected"; do sleep 5; done'
+ExecStart=/usr/bin/nmcli connection up your-lte-connection-name
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+# Notes:
+# 1. Replace "your-lte-connection-name" with the actual name of your LTE network connection configured in NetworkManager.
+# 2. You might need to install ModemManager and configure your LTE modem first.
+# 3. Ensure your LTE modem (e.g., Quectel BG95) is supported and drivers are installed.
+# 4. This service attempts to bring up the LTE connection if it's not already active or if the primary WAN fails (depending on routing metrics).
+#    More sophisticated failover logic might involve monitoring the primary WAN and only activating LTE when it's down.
+#    Consider using tools like `ifmetric` or configuring routing priorities.
+#
+# To use:
+# 1. Edit this file with your specific commands and connection names.
+# 2. Save it as /etc/systemd/system/lte-failover.service (without .example).
+# 3. Run: sudo systemctl daemon-reload
+# 4. Run: sudo systemctl enable lte-failover.service
+# 5. Run: sudo systemctl start lte-failover.service
+

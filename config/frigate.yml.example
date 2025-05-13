@@ -1,0 +1,96 @@
+# frigate.yml.example
+# Example configuration for Frigate NVR
+# Refer to Frigate documentation for all available options: https://docs.frigate.video/
+
+mqtt:
+  host: mosquitto # Or your MQTT broker IP/hostname
+  port: 1883
+  # user: "your_mqtt_user" # Uncomment and set if MQTT requires authentication
+  # password: "your_mqtt_password" # Uncomment and set if MQTT requires authentication
+
+detectors:
+  coral:
+    type: edgetpu
+    # device: pci # or usb, or specific path like /dev/apex_0 for M.2 TPUs
+    # For M.2 Dual Edge TPU on RPi5, you might need to specify devices in docker-compose.yml
+    # and potentially list them here if Frigate needs specific assignment, e.g.:
+    # device: /dev/apex_0
+    # Or Frigate might automatically use all passed-through TPUs.
+
+# Optional: Configure CodeProject.AI as an external detector if needed for specific models
+# external_detector:
+#   codeprojectai:
+#     url: http://codeprojectai:32168 # URL of your CodeProject.AI service
+
+cameras:
+  # Replace with your actual camera configurations
+  example_camera_1: # Unique camera name
+    ffmpeg:
+      inputs:
+        - path: rtsp://USER:PASS@YOUR_CAMERA_IP/stream_profile # Replace with your camera RTSP stream URL
+          roles:
+            - detect # Process this stream for object detection
+            - record # Record this stream
+            # - rtmp # Restream via RTMP if needed
+    detect:
+      enabled: True
+      width: 1280 # Width of the stream for detection (adjust to your camera)
+      height: 720 # Height of the stream for detection (adjust to your camera)
+      fps: 5      # FPS for detection processing (lower is less CPU intensive)
+      # detector: coral # Assign the coral detector defined above
+    record:
+      enabled: True
+      retain:
+        days: 7 # Number of days to retain recordings
+        mode: motion # Retain recordings with motion events
+    snapshots:
+      enabled: True
+      timestamp: False
+      bounding_box: True
+      retain:
+        default: 7
+    # Motion detection configuration (Frigate uses this before passing to detectors)
+    motion:
+      mask:
+        # - "x1,y1,x2,y2,x3,y3,..." # Define motion masks if needed
+      threshold: 25 # Adjust as needed
+
+  # example_camera_2:
+  #   # ... configuration for another camera
+
+# Global object tracking settings
+objects:
+  track:
+    - person
+    - car
+    - cat
+    - dog
+    - package # Frigate has built-in package detection
+    # Add other objects you want Frigate to track
+  filters:
+    person:
+      min_area: 5000
+      max_area: 1000000
+      threshold: 0.6 # Detection confidence threshold
+
+# Optional: Birdseye view configuration
+# birdseye:
+#   enabled: True
+#   mode: objects # Or motion
+
+# Optional: Recording settings
+record:
+  events:
+    retain:
+      default: 14 # Days to retain event recordings
+      mode: motion # all, motion, active_objects
+
+# Optional: Hardware acceleration settings (highly dependent on your hardware)
+# ffmpeg:
+#   hwaccel_args: preset-rpi-64-h264 # Example for Raspberry Pi 4/5 with 64-bit OS for H.264
+  # Refer to Frigate documentation for hwaccel options
+
+# Database (SQLite by default, can be externalized)
+database:
+  path: /media/frigate/frigate.db # Ensure this path is writable and persistent (mounted volume)
+

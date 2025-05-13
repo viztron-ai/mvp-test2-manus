@@ -1,0 +1,66 @@
+[Unit]
+Description=Graceful UPS Shutdown Service Example
+# This service assumes you have a script that monitors the UPS status
+# and exits when a shutdown is required.
+# It also assumes the monitoring script is at /usr/local/bin/ups_monitor.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Replace /usr/local/bin/ups_monitor.sh with the actual path to your UPS monitoring script
+# This script should:
+# 1. Monitor the UPS (e.g., via USB, NUT - Network UPS Tools, or a GPIO signal).
+# 2. If low battery or power failure persists, it should perform any necessary pre-shutdown tasks.
+# 3. Finally, it should initiate a system shutdown, e.g., by calling `sudo /sbin/shutdown -h now`.
+#    Alternatively, this service itself can call shutdown if the script just exits with a specific code.
+ExecStart=/usr/local/bin/ups_monitor.sh
+
+[Install]
+WantedBy=multi-user.target
+
+# --- Example ups_monitor.sh (Conceptual) ---
+"""
+#!/bin/bash
+# This is a conceptual UPS monitoring script. Replace with your actual logic.
+
+UPS_STATUS_CMD="your_ups_status_command_here" # e.g., upsc myups@localhost battery.charge
+LOW_BATTERY_THRESHOLD=20 # Example: percentage
+
+while true; do
+    # Get UPS status (this is highly dependent on your UPS and monitoring software)
+    # Example: using apcupsd
+    # STATUS=$(apcaccess status | grep STATUS | awk 	'{print $3}')
+    # BATTCHG=$(apcaccess status | grep BATTCHG | awk 	'{print $3}' | cut -d. -f1)
+
+    # Example: using NUT (Network UPS Tools)
+    # BATTCHG=$(upsc your_ups_name@localhost battery.charge 2>/dev/null)
+    # STATUS=$(upsc your_ups_name@localhost ups.status 2>/dev/null) # OL, OB DISCHRG, etc.
+
+    # --- Placeholder Logic --- 
+    # This is where you would put your actual UPS reading logic.
+    # For this example, we'll simulate a low battery condition after a while.
+    # In a real script, you would check $STATUS and $BATTCHG.
+    
+    # Simulate checking every 60 seconds
+    sleep 60
+
+    # --- Replace with actual condition checking --- 
+    # if [[ "$STATUS" == "OB DISCHRG" && "$BATTCHG" -lt "$LOW_BATTERY_THRESHOLD" ]]; then
+    #     logger "UPS: Low battery detected ($BATTCHG%) and on battery power. Initiating shutdown."
+    #     # Perform any pre-shutdown tasks here (e.g., notify services)
+    #     /sbin/shutdown -h now
+    #     exit 0 # Exit after initiating shutdown
+    # fi
+
+    # If your script is designed to exit when shutdown is needed, systemd will handle it.
+    # If the script itself calls shutdown, ensure it has sudo privileges or systemd handles it.
+done
+"""
+# To use:
+# 1. Create your actual ups_monitor.sh script (make it executable: chmod +x /usr/local/bin/ups_monitor.sh).
+# 2. Edit this service file if your script path or logic differs.
+# 3. Save this as /etc/systemd/system/ups-shutdown.service (without .example).
+# 4. Run: sudo systemctl daemon-reload
+# 5. Run: sudo systemctl enable ups-shutdown.service
+# 6. Run: sudo systemctl start ups-shutdown.service
+
